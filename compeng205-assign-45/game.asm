@@ -27,7 +27,8 @@ SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
 
 ;; Set max asteroids
-MAX_ASTEROIDS = 50
+;; MAX_ASTEROIDS = 50
+MAX_ASTEROIDS = 1
 
 ;;  Increment to rotate HIM on each frame
 ROTATE_INC = 6433
@@ -76,7 +77,10 @@ GameInit PROC USES ebx ecx
 	ret
 GameInit ENDP
 
-GamePlay PROC USES ebx ecx
+GamePlay PROC USES ebx
+	;; Move all asteroid sprites
+	INVOKE MoveAsteroids
+
 	;; Check mouse state
 
 	;; If the state hasn't changed, do nothing
@@ -84,7 +88,6 @@ GamePlay PROC USES ebx ecx
 	cmp ebx, MOUSE_PRESSED
 	je HANDLE_KEY_PRESS
 
-	HERE:
 	;; If nothing is pressed, it was released
 	cmp ebx, 0
 	je HANDLE_RELEASE
@@ -140,12 +143,19 @@ GamePlay PROC USES ebx ecx
 GamePlay ENDP
 
 SpawnAsteroid PROC USES ebx ecx edx esi
-	LOCAL asteroid:Sprite
+	LOCAL asteroidPtr:DWORD
+	LOCAL x:DWORD, y:DWORD
 
 	;; Do nothing if too many sprites
 	cmp ASTEROID_COUNT, MAX_ASTEROIDS
 	mov ebx, ASTEROID_COUNT
 	jge DONE
+
+	;; HACK FOR NOW - Spawn at fixed spot
+	mov edx, SCREEN_WIDTH
+	shr edx, 1
+	INVOKE BasicBlit, OFFSET Asteroid, edx, 0
+	jmp SAVE_SPRITE
 
 	;; Randomly decide which side to spawn on
 	INVOKE nrandom, 2
@@ -156,6 +166,7 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 	;; Get x-coordinate to draw
 	INVOKE nrandom, SCREEN_WIDTH
 	mov esi, eax
+	mov x, eax
 
 	;; Decide whether to draw on top or bottom
 	INVOKE nrandom, 2
@@ -164,11 +175,13 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 
 	;; Paint on top
 	PAINT_TOP:
+	mov y, 0
 	INVOKE BasicBlit, OFFSET Asteroid, esi, 0
 	jmp SAVE_SPRITE
 
 	;; Paint on bottom
 	PAINT_BOTTOM:
+	mov y, [SCREEN_HEIGHT]
 	INVOKE BasicBlit, OFFSET Asteroid, esi, SCREEN_HEIGHT
 	jmp SAVE_SPRITE
 
@@ -176,6 +189,7 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 	;; Get y-coordinate to draw
 	INVOKE nrandom, SCREEN_HEIGHT
 	mov esi, eax
+	mov y, eax
 
 	;; Decide whether to draw on left or right
 	INVOKE nrandom, 2
@@ -184,34 +198,124 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 
 	;; Paint on left
 	PAINT_LEFT:
+	mov x, 0
 	INVOKE BasicBlit, OFFSET Asteroid, 0, esi
 	jmp SAVE_SPRITE
 
 	;; Paint on right
 	PAINT_RIGHT:
+	mov x, SCREEN_WIDTH
 	INVOKE BasicBlit, OFFSET Asteroid, SCREEN_WIDTH, esi
 
 	SAVE_SPRITE:
+	;; Get current asteroid
+	mov ebx, SIZEOF Sprite
+	imul ebx, ASTEROID_COUNT
+	lea ecx, ASTEROIDS
+	add ebx, ecx
+	mov asteroidPtr, ebx
+
 	;; Create and save asteroid sprite
-	;; mov asteroid.x, ebx
-	;; mov asteroid.y, ecx
-	;; mov asteroid.vX, 0 ;;TODOTODOTODOTODOTODOTODO Initialize this
-	;; mov asteroid.vY, 0
-	;; mov asteroid.rotation, 0
+	;; mov edx, [x]
+	;; mov (Sprite PTR [ebx]).x, edx ;; Set x
+	mov edx, SCREEN_WIDTH
+	shr edx, 1
+	mov (Sprite PTR [ebx]).x, edx ;; HACK
+	;; mov edx, [y]
+	;; mov (Sprite PTR [ebx]).y, edx ;; Set y
+	mov (Sprite PTR [ebx]).y, 0 ;; HACK
+	mov (Sprite PTR [ebx]).vX, 0 ;; Set vX ;; TODO: Make this move towards HIM
+	mov (Sprite PTR [ebx]).vY, 1 ;; Set vY
+	mov (Sprite PTR [ebx]).rotation, 0 ;; Set rotation
+	lea ecx, Asteroid
+	mov (Sprite PTR [ebx]).bitmapPtr, ecx ;; Set bitmap
 
-	;; Save the address of the Asteroid bitmap
-	;; lea ebx, Asteroid
-	;; mov asteroid.bitmapPtr, ebx
-
-	;; Put the asteroid in the list
-	;; mov ebx, SIZEOF asteroid
-	;; lea ecx, ASTEROIDS
-	;; mov [ecx + ASTEROID_COUNT * ebx], asteroid ;; TODOTODOTODOTODOTODO this is broken
-	;; inc ASTEROID_COUNT
+	;; Mark that we added another asteroid
+	inc ASTEROID_COUNT
 	
 	DONE:
 	ret
 SpawnAsteroid ENDP
+
+MoveAsteroids PROC USES ebx ecx edx
+	LOCAL x:DWORD, y:DWORD, vX:DWORD, vY:DWORD, bitmapPtr:DWORD
+	LOCAL count:DWORD, address:DWORD, endAddr:DWORD
+
+	;; Initialization
+	lea ecx, ASTEROIDS
+	mov address, ecx
+	lea ecx, ASTEROID_COUNT
+	mov ecx, [ecx]
+	mov count, ecx
+	imul ecx, 24
+	add ecx, address
+	mov endAddr, ecx
+
+	jmp COND
+
+	BODY:
+
+	;; HACK FOR NOW - Fix this later
+	lea ebx, ASTEROIDS
+	mov edx, (Sprite PTR [ebx]).x
+	mov x, edx
+	mov edx, (Sprite PTR [ebx]).y
+	mov y, edx
+	mov edx, (Sprite PTR [ebx]).vX
+	mov vX, edx
+	mov edx, (Sprite PTR [ebx]).vY
+	mov vY, edx
+
+	;; Save fields
+	;mov edx, (Sprite PTR [address]).x
+	;mov x, edx
+	;mov edx, (Sprite PTR [address]).y
+	;mov y, edx
+	;mov edx, (Sprite PTR [address]).vX
+	;mov vX, edx
+	;mov edx, (Sprite PTR [address]).vY
+	;mov vY, edx
+	lea edx, Asteroid ;;Correct
+	mov bitmapPtr, edx
+
+	;; Clear old asteroid sprite
+	INVOKE ClearSprite, bitmapPtr, x, y, 0
+
+	;; Calculate & save new sprite position
+	mov edx, x
+	add edx, vX
+	;; mov (Sprite PTR [address]).x, edx
+	mov (Sprite PTR [ebx]).x, edx
+	mov x, edx
+	mov ecx, [y]
+	add ecx, vY
+	;; mov (Sprite PTR [address]).y, ecx
+	mov (Sprite PTR [ebx]).y, ecx
+	mov y, ecx
+
+	;; Check for collision
+	INVOKE CheckIntersect, x, y, bitmapPtr, HIM.x, HIM.y, HIM.bitmapPtr
+	cmp eax, 1
+	jne DRAW
+	dec ASTEROID_COUNT
+	jmp INCREMENT
+
+	;; Draw new sprite
+	DRAW:
+	INVOKE BasicBlit, bitmapPtr, x, y
+
+	;; Move to next asteroid
+	INCREMENT:
+	mov ecx, SIZEOF Sprite
+	add address, ecx
+
+	COND:
+	mov ebx, address
+	cmp ebx, endAddr
+	jl BODY
+
+	ret
+MoveAsteroids ENDP
 
 CheckIntersect PROC USES ebx ecx edx oneX:DWORD, oneY:DWORD, oneBitmap:PTR EECS205BITMAP, twoX:DWORD, twoY:DWORD, twoBitmap:PTR EECS205BITMAP
 	LOCAL TopLeftOneX:DWORD, TopLeftOneY:DWORD, BottomRightOneX:DWORD, BottomRightOneY:DWORD
@@ -291,11 +395,12 @@ CheckIntersect PROC USES ebx ecx edx oneX:DWORD, oneY:DWORD, oneBitmap:PTR EECS2
 	;; Check for horizontal overlap (if either of these conditions are true, no overlap)
 	mov ebx, TopLeftOneX
 	cmp ebx, BottomRightTwoX
-	jl DONE
+	jl CHECK_VERTICAL
 	mov ebx, TopLeftTwoX
 	cmp ebx, BottomRightOneX
-	jl DONE
+	jl CHECK_VERTICAL
 
+	CHECK_VERTICAL:
 	;; Check for vertical overlap (if either of these conditions are true, no overlap)
 	mov ebx, TopLeftOneY
 	cmp ebx, BottomRightTwoY

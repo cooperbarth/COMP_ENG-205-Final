@@ -38,6 +38,6 @@ EXTERNDEF StarBitmap:EECS205BITMAP
 ;; User Defined Functions
 GameInit PROTO
 GamePlay PROTO
-SpawnAsteroid PROTO
+SpawnAsteroid PROTO STDCALL
+MoveAsteroids PROTO STDCALL
 CheckIntersect PROTO oneX:DWORD, oneY:DWORD, oneBitmap:PTR EECS205BITMAP, twoX:DWORD, twoY:DWORD, twoBitmap:PTR EECS205BITMAP 
-ClearSprite PROTO STDCALL ptrBitmap:PTR EECS205BITMAP, xcenter:DWORD, ycenter:DWORD, angle:FXPT

@@ -1,3 +1,2 @@
 ﻿  Assembling ..\..\compeng205-assign-45\game.asm...
-..\..\compeng205-assign-45\game.asm(214): warning A6004: procedure argument or local not referenced : asteroid
   HW45.vcxproj -> C:\Users\coop1\Desktop\COMP_ENG-205-Final\compeng205-assign-45\Debug\HW45.exe
