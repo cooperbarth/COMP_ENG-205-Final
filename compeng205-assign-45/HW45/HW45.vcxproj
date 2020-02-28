@@ -24,27 +24,18 @@
     <None Include="..\..\compeng205-assign-45\keys.inc" />
     <None Include="..\..\compeng205-assign-45\lines.inc" />
     <None Include="..\..\compeng205-assign-45\trig.inc" />
-    <None Include="..\make.bat" />
     <None Include="..\stars.inc" />
   </ItemGroup>
   <ItemGroup>
     <Object Include="..\..\compeng205-assign-45\libgame.obj" />
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="..\..\compeng205-assign-45\blit.asm">
-      <EnableMASM51Compatibility Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</EnableMASM51Compatibility>
-    </MASM>
-    <MASM Include="..\..\compeng205-assign-45\game.asm">
-      <EnableMASM51Compatibility Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</EnableMASM51Compatibility>
-    </MASM>
-    <MASM Include="..\..\compeng205-assign-45\lines.asm">
-      <EnableMASM51Compatibility Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</EnableMASM51Compatibility>
-    </MASM>
-    <MASM Include="..\..\compeng205-assign-45\trig.asm">
-      <EnableMASM51Compatibility Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</EnableMASM51Compatibility>
-    </MASM>
+    <MASM Include="..\..\compeng205-assign-45\game.asm" />
+    <MASM Include="..\blit.asm" />
+    <MASM Include="..\lines.asm" />
     <MASM Include="..\sprites.asm" />
     <MASM Include="..\stars.asm" />
+    <MASM Include="..\trig.asm" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
@@ -125,6 +116,8 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>C:\masm32\lib</AdditionalLibraryDirectories>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

@@ -33,9 +33,6 @@
     <None Include="..\stars.inc">
       <Filter>Header Files</Filter>
     </None>
-    <None Include="..\make.bat">
-      <Filter>Source Files</Filter>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <Object Include="..\..\compeng205-assign-45\libgame.obj">
@@ -43,22 +40,22 @@
     </Object>
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="..\..\compeng205-assign-45\blit.asm">
-      <Filter>Source Files</Filter>
-    </MASM>
     <MASM Include="..\..\compeng205-assign-45\game.asm">
-      <Filter>Source Files</Filter>
-    </MASM>
-    <MASM Include="..\..\compeng205-assign-45\lines.asm">
-      <Filter>Source Files</Filter>
-    </MASM>
-    <MASM Include="..\..\compeng205-assign-45\trig.asm">
       <Filter>Source Files</Filter>
     </MASM>
     <MASM Include="..\stars.asm">
       <Filter>Source Files</Filter>
     </MASM>
     <MASM Include="..\sprites.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
+    <MASM Include="..\blit.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
+    <MASM Include="..\lines.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
+    <MASM Include="..\trig.asm">
       <Filter>Source Files</Filter>
     </MASM>
   </ItemGroup>

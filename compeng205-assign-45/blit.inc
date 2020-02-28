@@ -5,7 +5,6 @@
 ;
 ; #########################################################################
 
-
 _EECS205BITMAP STRUCT
  dwWidth      DWORD  ?
  dwHeight     DWORD  ?
@@ -16,8 +15,21 @@ _EECS205BITMAP ENDS
 
 EECS205BITMAP TYPEDEF _EECS205BITMAP
 
+_Sprite STRUCT
+	x DWORD ?
+	y DWORD ?
+	vX DWORD ?
+	vY DWORD ?
+	rotation FXPT ?
+	bitmapPtr DWORD ?
+_Sprite ENDS
+
+Sprite TYPEDEF _Sprite
+
 EXTERNDEF ScreenBitsPtr:DWORD
 
 BasicBlit PROTO STDCALL ptrBitmap:PTR EECS205BITMAP, xcenter:DWORD, ycenter:DWORD
 
 RotateBlit PROTO STDCALL ptrBitmap:PTR EECS205BITMAP, xcenter:DWORD, ycenter:DWORD, angle:FXPT
+
+ClearSprite PROTO STDCALL ptrBitmap:PTR EECS205BITMAP, xcenter:DWORD, ycenter:DWORD, angle:FXPT

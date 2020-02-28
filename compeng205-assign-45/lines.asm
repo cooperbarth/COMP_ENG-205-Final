@@ -1,7 +1,7 @@
 ; #########################################################################
 ;
 ;   lines.asm - Assembly file for CompEng205 Assignment 2
-;
+;	Cooper
 ;
 ; #########################################################################
 
@@ -18,114 +18,128 @@ include lines.inc
 	;; If you need to, you can place global variables here
 	
 .CODE
+
+;; This code is super gross but I was in a hurry
+;; I present to thee: "Abuse of esi"
+
+DrawLine PROC USES esi x0:DWORD, y0:DWORD, x1:DWORD, y1:DWORD, color:DWORD
+
+	LOCAL delta_x:SDWORD, delta_y:SDWORD
+	LOCAL inc_x:SDWORD, inc_y:SDWORD
+	LOCAL error:SDWORD, prev_error:SDWORD
+	LOCAL curr_x:DWORD, curr_y:DWORD
+
+	;; Take the absolute value of x1-x0
+	ABS_X:
+	mov esi, x1
+	mov delta_x, esi
+	mov esi, x0
+	sub delta_x, esi
+	jge ABS_Y
+	neg delta_x
 	
+	;; Take the absolute value of y1-y0
+	ABS_Y:
+	mov esi, y1
+	mov delta_y, esi
+	mov esi, y0
+	sub delta_y, esi
+	jge SET_INC_X
+	neg delta_y
 
-;; Don't forget to add the USES the directive here
-;;   Place any registers that you modify (either explicitly or implicitly)
-;;   into the USES list so that caller's values can be preserved
-	
-;;   For example, if your procedure uses only the eax and ebx registers
-;;      DrawLine PROC USES eax ebx x0:DWORD, y0:DWORD, x1:DWORD, y1:DWORD, color:DWORD
-DrawLine PROC USES ecx ebx x0:DWORD, y0:DWORD, x1:DWORD, y1:DWORD, color:DWORD
-	;; Feel free to use local variables...declare them here
-	;; For example:
-	;; 	LOCAL foo:DWORD, bar:DWORD
-	
-	;; Place your code here
-LOCAL currx:DWORD, curry:DWORD, deltax:DWORD, dy:DWORD, incx:DWORD, incy:DWORD, error:DWORD
-start:
-	mov ecx, x1
-	sub ecx, x0
-	cmp ecx, 0
-	jge absxcheck
-	neg ecx
-absxcheck:
-	mov deltax, ecx
-setupdy:
-	mov ecx, y1
-	sub ecx, y0
-	cmp ecx, 0
-	jge absycheck
-	neg ecx
-absycheck:
-	mov dy, ecx
+	;; If statement to set inc_x
+	SET_INC_X:
+	mov inc_x, 1
+	mov esi, x1
+	cmp x0, esi
+	jl SET_INC_Y
+	neg inc_x
 
-initincx:
-	mov ecx, x0
-	cmp ecx, x1
-	jl incxone
-	mov incx, -1
-	jmp initincy
-incxone:
-	mov incx, 1
+	;; If statement to set inc_y
+	SET_INC_Y:
+	mov inc_y, 1
+	mov esi, y1
+	cmp y0, esi
+	jl SET_ERROR
+	neg inc_y
 
-initincy:
-	mov ecx, y0
-	cmp ecx, y1
-	jl inityone
-	mov incy, -1
-	jmp initerror
-inityone:
-	mov incy, 1
+	;; If statement to set error
+	SET_ERROR:
+	mov esi, delta_y
+	cmp delta_x, esi
+	jle SET_ERROR_ELSE
 
-initerror:
-	mov ecx, deltax
-	cmp ecx, dy
-	jg errorgetsdx
-	mov esi, dy
-	sar esi, 1
-	neg esi
+	mov esi, delta_x
 	mov error, esi
-	jmp initloop
-errorgetsdx:
-	sar ecx, 1
-	mov error, ecx	
+	jmp SET_ERROR_DIVIDE
 
-initloop:
-	mov ecx, x0
-	mov currx, ecx
-	mov ecx, y0
-	mov curry, ecx
-	invoke DrawPixel, currx, curry, color
-	jmp evalloop
+	SET_ERROR_ELSE:
+	mov esi, delta_y
+	mov error, esi
+	neg error
 
-	;; While loop body
-drawloop:
-	invoke DrawPixel, currx, curry, color	
-	mov ecx, error ; using ecx for prev_error
-	neg deltax
-	cmp ecx, deltax
-	jle nexterrorcheck
-	mov ebx, error
-	sub ebx, dy
-	mov error, ebx
-	mov ebx, currx
-	add ebx, incx
-	mov currx, ebx
-nexterrorcheck:
-	neg deltax
-	cmp ecx, dy
-	jge evalloop
-	mov ebx, error
-	add ebx, deltax
-	mov error, ebx
-	mov ebx, curry
-	add ebx, incy
-	mov curry, ebx
+	SET_ERROR_DIVIDE:
+	sar error, 1
 
-;; Evaluation condition
-evalloop:
-	mov ecx, x1
-	cmp currx, ecx
-	jne drawloop
-	mov ecx, y1
-	cmp curry, ecx
-	jne drawloop
+	;; Set curr_x and curr_y
+	SET_CURR:
+	mov esi, x0
+	mov curr_x, esi
+	mov esi, y0
+	mov curr_y, esi
 
-	ret        	;;  Don't delete this line...you need it
+	;; Draw the first pixel
+	invoke DrawPixel, curr_x, curr_y, color
+
+	;; While loop conditions
+	LOOP_START:
+	mov esi, x1
+	cmp curr_x, esi
+	jne LOOP_BODY
+	mov esi, y1
+	cmp curr_y, esi
+	jne LOOP_BODY
+	jmp LOOP_END
+
+	;; Start while loop
+	LOOP_BODY:
+
+	;; Draw pixel
+	invoke DrawPixel, curr_x, curr_y, color
+
+	;; Record last error
+	mov esi, error
+	mov prev_error, esi
+
+	;; delta_x if statement
+	mov esi, delta_x
+	neg esi
+	cmp prev_error, esi
+	jle DELTA_Y_IF
+
+	mov esi, delta_y
+	sub error, esi
+	mov esi, inc_x
+	add curr_x, esi
+
+	;; delta_y if statement
+	DELTA_Y_IF:
+	mov esi, delta_y
+	cmp prev_error, esi
+	jge LOOP_START
+
+	mov esi, delta_x
+	add error, esi
+	mov esi, inc_y
+	add curr_y, esi
+
+	;; Restart loop
+	jmp LOOP_START
+	
+	;; End while loop
+	LOOP_END:
+
+	ret
 DrawLine ENDP
-
-
-
 
 END

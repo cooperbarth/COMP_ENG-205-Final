@@ -15,196 +15,188 @@ include lines.inc
 include trig.inc
 include blit.inc
 
-
 .DATA
 
-	;; If you need to, you can place global variables here
+	NUM_COLUMNS = 640
+	NUM_ROWS = 480
 	
 .CODE
 
-DrawPixel PROC USES ebx edi x:DWORD, y:DWORD, color:DWORD
-	
-	;; check that x and y cords are in range
-	cmp x, 0
-	jl finished
-	cmp y, 0 
-	jl finished
+DrawPixel PROC USES ebx x:DWORD, y:DWORD, color:DWORD
+	; Bounds checks
 	cmp x, 639
-	jg finished
+	jg DONE
+	cmp x, 0
+	jl DONE
 	cmp y, 479
-	jg finished
+	jg DONE
+	cmp y, 0
+	jl DONE
 
-	;; find coordinate -- [ptr +x+y*640]
+	; Get color address (ScreenBitsPtr + 640 * y + x)
 	mov eax, y
-	mov edi, 640
-	mul edi
+	mov ebx, 640
+	mul ebx
 	add eax, x
 	add eax, ScreenBitsPtr
 
-	;; Add required color to pixel
+	; Draw the pixel
 	mov ebx, color
 	mov BYTE PTR [eax], bl
 
-	finished:
-	ret 			; Don't delete this line!!!
+	DONE:
+	ret
 DrawPixel ENDP
 
-BasicBlit PROC USES ecx ebx edx edi esi ptrBitmap:PTR EECS205BITMAP , xcenter:DWORD, ycenter:DWORD
-	local w: DWORD, h: DWORD, x_cord: DWORD, y_cord: DWORD, lpb: DWORD, transp: BYTE
+BasicBlit PROC USES ebx ecx edx edi esi ptrBitmap:PTR EECS205BITMAP , xcenter:DWORD, ycenter:DWORD
 
+	LOCAL x: DWORD, y: DWORD
+	LOCAL x_0:DWORD, y_0:DWORD
+	LOCAL h:DWORD, w:DWORD
+	LOCAL t:BYTE, colorBytes:DWORD
+
+	; Initialize local variables
+	mov x, 0
+	mov y, 0
 	mov ecx, ptrBitmap
+	mov edx, (EECS205BITMAP PTR [ecx]).dwHeight
+	mov h, edx
+	mov edx, (EECS205BITMAP PTR [ecx]).dwWidth
+	mov w, edx
+	mov al, (EECS205BITMAP PTR [ecx]).bTransparent
+	mov t, al
+	mov edx, (EECS205BITMAP PTR [ecx]).lpBytes
+	mov colorBytes, edx
 
-	;; Storing width for future calculations
-	mov ebx, (EECS205BITMAP PTR [ecx]).dwWidth
-	mov w, ebx 
+	; Set initial x-coordinate (xcenter - dwidth / 2)
+	mov ecx, w
+	sar ecx, 1
+	mov ebx, xcenter
+	sub ebx, ecx
+	mov x_0, ebx ; Store initial X coord
+
+	; Set initial y-coordinate (ycenter - dheight / 2)
+	mov ecx, h
+	sar ecx, 1
+	mov ebx, ycenter
+	sub ebx, ecx
+	mov y_0, ebx ; Store initial Y coord
 	
-	;; x_cord = xcenter - dwWdith/2
-	sar ebx, 1
-	mov edx, xcenter
-	sub edx, ebx
-	mov x_cord, edx
+	jmp OUTER_LOOP_COND
 
-	;; Storing height for future calculation
-	mov ebx, (EECS205BITMAP PTR [ecx]).dwHeight
-	mov h, ebx
+	LOOP_BODY:
+	; Bounds checks are handled in DrawPixel
 
-	;; calculating y_cord = ycenter - dwHeight/2
-	sar ebx, 1
-	mov edx, ycenter
-	sub edx, ebx
-	mov y_cord, edx
-
-	;; Storing pixel color for tranparency check
-	mov ebx, 0
-	mov bl, (EECS205BITMAP PTR [ecx]).bTransparent
-	mov transp, bl 
-
-	;; Storing LPBytes for further calculations
-	mov ebx, (EECS205BITMAP PTR [ecx]).lpBytes
-	mov lpb, ebx
-
-	;; initialize values for nested loops
-	;; y = esi --> counter for loop 1, and x = edi --> counter for loop 2
-	mov esi, 0
-	mov edi, 0
-	jmp eval_ycord
-	
-	body:
-	;; calculate index first
-	mov eax, esi
+	; Calculate y * w + x
+	mov eax, y
 	mul w
-	add eax, edi
+	add eax, x
 
-	;; Retrieve color at that index
-	mov ebx, lpb
-	mov edx, 0
-	mov dl, BYTE PTR [ebx + eax]
+	; Get color byte
+	mov edi, colorBytes
+	mov dl, BYTE PTR [eax + edi]
 
-	;; check if current coord is transparent
-	cmp dl, transp
-	je eval_xcord
+	; Check for transparency
+	cmp dl, t
+	je INNER_LOOP_COND
 
-	; DrawPixel
-	mov ecx, x_cord
-	add ecx, edi
-	mov ebx, y_cord
-	add ebx, esi
-	invoke DrawPixel, ecx, ebx, dl
+	; Draw pixel
+	mov esi, x
+	add esi, x_0
+	mov ebx, y
+	add ebx, y_0
+	INVOKE DrawPixel, esi, ebx, dl
 
-	;; check for inner loop
-	eval_xcord:
-	inc edi
-	cmp edi, h
-	jl body
+	INNER_LOOP_COND:
+	inc x ; Move to the next column
+	mov edi, x
+	cmp edi, w ; Loop again if x < w
+	jl LOOP_BODY
+	inc y ; Move to the next row if we didn't jump
 
-	;; increment outer loop (loop on y-cord)
-	inc esi
+	OUTER_LOOP_COND:
+	and x, 0 ; Reset x coordinate
+	mov edi, y
+	cmp edi, h ; Run body if y < h
+	jl LOOP_BODY
 
-	;; check for outer loop
-	eval_ycord:
-	mov edi, 0
-	cmp esi, h
-	jl body
-
-	ret 			
+	ret
 BasicBlit ENDP
 
-RotateBlit PROC USES esi edi ebx ecx ebx eax lpBmp:PTR EECS205BITMAP, xcenter:DWORD, ycenter:DWORD, angle:FXPT
-	local cosa: FXPT, sina: FXPT, shiftx: FXPT, shifty: FXPT
-	local halfsin: FXPT, halfcos: FXPT
-	local dstwh: DWORD, n_dstwh: DWORD, color: BYTE
-	local srcX: FXPT, srcY: FXPT
-	local dstX: DWORD, dstY: DWORD
-	local w: DWORD, h: DWORD, lpb: DWORD, xcord: DWORD, ycord: DWORD
+RotateBlit PROC USES ebx ecx edx lpBmp:PTR EECS205BITMAP, xcenter:DWORD, ycenter:DWORD, angle:FXPT
 
-	mov esi, lpBmp
+	LOCAL sina:FXPT, cosa:FXPT
+	LOCAL halfsin:FXPT, halfcos:FXPT
+	LOCAL h:DWORD, w:DWORD
+	LOCAL t:BYTE, colorBytes:DWORD
+	LOCAL shiftX:FXPT, shiftY:FXPT
+	LOCAL dstWidth:DWORD, dstHeight:DWORD
+	LOCAL dstX:DWORD, dstY:DWORD
+	LOCAL srcX:FXPT, srcY:FXPT
 
-	;; find sine and cosine angles
-	invoke FixedCos, angle
-	mov cosa, eax
-	invoke FixedSin, angle
+	; Call sin and cosine functions
+	mov ebx, angle
+	INVOKE FixedSin, ebx
 	mov sina, eax
+	INVOKE FixedCos, ebx
+	mov cosa, eax
 
-	;; initialize half angles
-	mov ecx, sina
-	shr ecx, 1
-	mov halfsin, ecx
-	mov ecx, cosa
-	shr ecx, 1
-	mov halfcos, ecx
+	; Initialize local variables
+	mov ecx, lpBmp
+	mov edx, (EECS205BITMAP PTR [ecx]).dwHeight
+	mov h, edx
+	mov edx, (EECS205BITMAP PTR [ecx]).dwWidth
+	mov w, edx
+	mov al, (EECS205BITMAP PTR [ecx]).bTransparent
+	mov t, al
+	mov edx, (EECS205BITMAP PTR [ecx]).lpBytes
+	mov colorBytes, edx
 
-	;; Storing initial values
-	mov eax, (EECS205BITMAP PTR [esi]).dwWidth
-	mov w, eax
-	mov eax, (EECS205BITMAP PTR [esi]).dwHeight
-	mov h, eax
-	xor eax, eax
-	mov al, (EECS205BITMAP PTR [esi]).bTransparent
-	mov color, al
-	mov eax, (EECS205BITMAP PTR [esi]).lpBytes
-	mov lpb, eax
+	; Initialize sin/2 and cos/2
+	mov eax, sina
+	sar eax, 1
+	mov halfsin, eax
+	mov eax, cosa
+	sar eax, 1
+	mov halfcos, eax
 
-	;; calculating shiftX
+	; Calculate shiftX
 	mov eax, w
 	imul halfcos
-	sar eax, 16
-	mov shiftx, eax
+	sar eax, 16 ; Convert to fixed point
+	mov shiftX, eax
+
 	mov eax, h
 	imul halfsin
-	sar eax, 16
-	sub shiftx, eax 
+	sar eax, 16 ; Convert to fixed point
+	sub shiftX, eax
 
-	;; calculating shiftY
+	; Calculate shiftY
 	mov eax, h
 	imul halfcos
-	sar eax, 16
-	mov shifty, eax
+	sar eax, 16 ; Convert to fixed point
+	mov shiftY, eax
+
 	mov eax, w
 	imul halfsin
-	sar eax, 16
-	add shifty, eax
+	sar eax, 16 ; Convert to fixed point
+	add shiftY, eax
 
-	;; initialize dstheight = dstwidth = width + height
-	mov edx, w
-	add edx, h
-	mov dstwh, edx
-	mov n_dstwh, edx
-	neg n_dstwh
+	; Calculate dst width and height
+	mov ebx, w
+	add ebx, h
+	mov dstWidth, ebx
+	mov dstHeight, ebx
 
-	;; initialize counters dstX and dstY for loops
-	mov edi, n_dstwh
-	mov dstX, edi
-	jmp xeval
+	; Initialize dstX
+	mov dstX, ebx
+	neg dstX
 
-	;; body of outer loop --> reset dstY
-	xloop:
-	mov ecx, n_dstwh
-	mov dstY, ecx
+	; Start the main loop
+	jmp OUTER_COND
 
-	;; body of inner loop
-	yloop:
-
-	;; calculate srcX
+	BODY:
+	; Calculate srcX
 	mov eax, dstX
 	imul cosa
 	sar eax, 16
@@ -213,8 +205,8 @@ RotateBlit PROC USES esi edi ebx ecx ebx eax lpBmp:PTR EECS205BITMAP, xcenter:DW
 	imul sina
 	sar eax, 16
 	add srcX, eax
-	
-	;;calculate srcY
+
+	; Calculate srcY
 	mov eax, dstY
 	imul cosa
 	sar eax, 16
@@ -224,60 +216,200 @@ RotateBlit PROC USES esi edi ebx ecx ebx eax lpBmp:PTR EECS205BITMAP, xcenter:DW
 	sar eax, 16
 	sub srcY, eax
 
-	;;check if srcX and srcY are valid
-	cmp srcX, 0
-	jl yinc
-	cmp srcY, 0
-	jl yinc
+	; First round of IF checks
+	cmp srcX, 0 ; Skip further calculations if srcX < 0
+	jl INC_INNER_LOOP
 	mov ebx, w
 	cmp srcX, ebx
-	jge yinc
+	jge INC_INNER_LOOP ; Skip further calculations if srcX >= w
+	cmp srcY, 0
+	jl INC_INNER_LOOP ; Skip further calculations if srcY < 0
 	mov ebx, h
 	cmp srcY, ebx
-	jge yinc
+	jge INC_INNER_LOOP ; Skip further calculations if srcY >= h
 
-	;; calculate index to check for pixel
+	; Calculate srcY * w + srcX
 	mov eax, srcY
 	mul w
 	add eax, srcX
-	mov ecx, eax
-	add ecx, lpb
 
-	;; check if pixel is transparent
+	; Get the bitmap pixel
 	xor edx, edx
+	mov ecx, eax
+	add ecx, colorBytes
 	mov dl, BYTE PTR [ecx]
-	cmp dl, color
-	je yinc
 
-	;; calc x_cord to draw
-	mov eax, xcenter
-	add eax, dstX
-	sub eax, shiftx
-	mov xcord, eax
+	; Check for transparency
+	cmp dl, t
+	je INC_INNER_LOOP
 
-	;;calc ycord to draw
-	mov eax, ycenter
-	add eax, dstY
-	sub eax, shifty
-	mov ycord, eax
+	; Draw Pixel
+	mov ebx, xcenter
+	add ebx, dstX
+	sub ebx, shiftX
+	mov ecx, ycenter
+	add ecx, dstY
+	sub ecx, shiftY
+	INVOKE DrawPixel, ebx, ecx, dl
 
-	invoke DrawPixel, xcord, ycord, dl
-	
-	yinc:
+	INC_INNER_LOOP:
+	; Increment dstY
 	inc dstY
 
-	yeval:
-	mov ecx, dstY
-	cmp ecx, dstwh
-	jl yloop
-	inc dstX
+	INNER_COND:
+	mov ebx, dstY
+	cmp ebx, dstHeight
+	jl BODY
+	inc dstX ; Increment if didn't loop
 
-	xeval:
-	mov edi, dstX
-	cmp edi, dstwh
-	jl xloop
-
-	ret 			; Don't delete this line!!!		
+	OUTER_COND:
+	; Initialize dstY
+	mov ebx, dstHeight
+	neg ebx
+	mov dstY, ebx
+	; Comparison
+	mov ebx, dstX
+	cmp ebx, dstWidth
+	jl BODY
+	
+	ret
 RotateBlit ENDP
+
+;; Just rotateBlit but painting it black
+ClearSprite PROC USES ebx ecx edx lpBmp:PTR EECS205BITMAP, xcenter:DWORD, ycenter:DWORD, angle:FXPT
+	LOCAL sina:FXPT, cosa:FXPT
+	LOCAL halfsin:FXPT, halfcos:FXPT
+	LOCAL h:DWORD, w:DWORD
+	LOCAL shiftX:FXPT, shiftY:FXPT
+	LOCAL dstWidth:DWORD, dstHeight:DWORD
+	LOCAL dstX:DWORD, dstY:DWORD
+	LOCAL srcX:FXPT, srcY:FXPT
+
+	; Call sin and cosine functions
+	mov ebx, angle
+	INVOKE FixedSin, ebx
+	mov sina, eax
+	INVOKE FixedCos, ebx
+	mov cosa, eax
+
+	; Initialize local variables
+	mov ecx, lpBmp
+	mov edx, (EECS205BITMAP PTR [ecx]).dwHeight
+	mov h, edx
+	mov edx, (EECS205BITMAP PTR [ecx]).dwWidth
+	mov w, edx
+
+	; Initialize sin/2 and cos/2
+	mov eax, sina
+	sar eax, 1
+	mov halfsin, eax
+	mov eax, cosa
+	sar eax, 1
+	mov halfcos, eax
+
+	; Calculate shiftX
+	mov eax, w
+	imul halfcos
+	sar eax, 16 ; Convert to fixed point
+	mov shiftX, eax
+
+	mov eax, h
+	imul halfsin
+	sar eax, 16 ; Convert to fixed point
+	sub shiftX, eax
+
+	; Calculate shiftY
+	mov eax, h
+	imul halfcos
+	sar eax, 16 ; Convert to fixed point
+	mov shiftY, eax
+
+	mov eax, w
+	imul halfsin
+	sar eax, 16 ; Convert to fixed point
+	add shiftY, eax
+
+	; Calculate dst width and height
+	mov ebx, w
+	add ebx, h
+	mov dstWidth, ebx
+	mov dstHeight, ebx
+
+	; Initialize dstX
+	mov dstX, ebx
+	neg dstX
+
+	; Start the main loop
+	jmp OUTER_COND
+
+	BODY:
+	; Calculate srcX
+	mov eax, dstX
+	imul cosa
+	sar eax, 16
+	mov srcX, eax
+	mov eax, dstY
+	imul sina
+	sar eax, 16
+	add srcX, eax
+
+	; Calculate srcY
+	mov eax, dstY
+	imul cosa
+	sar eax, 16
+	mov srcY, eax
+	mov eax, dstX
+	imul sina
+	sar eax, 16
+	sub srcY, eax
+
+	; First round of IF checks
+	cmp srcX, 0 ; Skip further calculations if srcX < 0
+	jl INC_INNER_LOOP
+	mov ebx, w
+	cmp srcX, ebx
+	jge INC_INNER_LOOP ; Skip further calculations if srcX >= w
+	cmp srcY, 0
+	jl INC_INNER_LOOP ; Skip further calculations if srcY < 0
+	mov ebx, h
+	cmp srcY, ebx
+	jge INC_INNER_LOOP ; Skip further calculations if srcY >= h
+
+	; Calculate srcY * w + srcX
+	mov eax, srcY
+	mul w
+	add eax, srcX
+
+	; Draw Pixel
+	mov ebx, xcenter
+	add ebx, dstX
+	sub ebx, shiftX
+	mov ecx, ycenter
+	add ecx, dstY
+	sub ecx, shiftY
+	INVOKE DrawPixel, ebx, ecx, 0
+
+	INC_INNER_LOOP:
+	; Increment dstY
+	inc dstY
+
+	INNER_COND:
+	mov ebx, dstY
+	cmp ebx, dstHeight
+	jl BODY
+	inc dstX ; Increment if didn't loop
+
+	OUTER_COND:
+	; Initialize dstY
+	mov ebx, dstHeight
+	neg ebx
+	mov dstY, ebx
+	; Comparison
+	mov ebx, dstX
+	cmp ebx, dstWidth
+	jl BODY
+	
+	ret
+ClearSprite ENDP
 
 END

@@ -13,17 +13,32 @@
 
 include stars.inc
 
+include C:\masm32\include\masm32.inc
+includelib C:\masm32\lib\masm32.lib
+
 .DATA
 
-	;; If you need to, you can place global variables here
+SCREEN_WIDTH = 640
+SCREEN_HEIGHT = 480
+STAR_COUNT = 75
 
 .CODE
 
-DrawStarField proc
+DrawStarField PROC USES ebx esi
+	mov esi, STAR_COUNT
 
-	ret  			; Careful! Don't remove this line
+	BODY:
+	INVOKE nrandom, SCREEN_WIDTH
+	mov ebx, eax
+
+	INVOKE nrandom, SCREEN_HEIGHT
+	INVOKE DrawStar, ebx, eax
+
+	COND:
+	dec esi
+	jnz BODY
+
+	ret
 DrawStarField endp
-
-
 
 END
