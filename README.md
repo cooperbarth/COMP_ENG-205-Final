@@ -8,6 +8,8 @@ This game is meant to be played with 2 players. Player 1 uses the left and right
 
 Whenever Player 1 successfully kills an asteroid with a missile, they are awarded 1 point. Whenever Player 2 successfully hits Player 1 with an asteroid, Player 1 loses 10 points. If the points go below -25, it's game over!
 
+Player 1 has 100 missiles. If they run out, Player 2 wins! Player 2 has 100 asteroids. If they run out, Player 1 wins!
+
 ## Advanced Components:
 
 - Multiple In-Flight Projectiles: There will be lots of projectiles on the screen at all times
