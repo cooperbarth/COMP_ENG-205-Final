@@ -18,9 +18,9 @@ EECS205BITMAP TYPEDEF _EECS205BITMAP
 _Sprite STRUCT
 	x DWORD ?
 	y DWORD ?
-	vX DWORD ?
-	vY DWORD ?
-	rotation FXPT ?
+	vX DWORD 0
+	vY DWORD 0
+	rotation FXPT 0
 	bitmapPtr DWORD ?
 _Sprite ENDS
 

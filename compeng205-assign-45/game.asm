@@ -19,16 +19,14 @@ include keys.inc
 
 include C:\masm32\include\masm32.inc
 includelib C:\masm32\lib\masm32.lib
+include \masm32\include\user32.inc
+;; include \masm32\lib\user32.lib
 	
 .DATA
 
 ;; Constants to track screen size
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
-
-;; Set max asteroids
-;; MAX_ASTEROIDS = 50
-MAX_ASTEROIDS = 1
 
 ;;  Increment to rotate HIM on each frame
 ROTATE_INC = 6433
@@ -39,10 +37,19 @@ MOUSE_PRESSED DWORD 0
 ;; Tracking last relevant key pressed
 KEY_PRESSED DWORD -1
 
+;; Keep track of whether the game is paused
+PAUSED DWORD 0
+
+;; Keeps track of the current score
+fmtStr BYTE "Score: %d", 0
+outStr BYTE 256 DUP(0)
+SCORE DWORD 0
+
 ;; Our hero
 HIM Sprite <>
 
 ;; Keep track of asteroids
+MAX_ASTEROIDS = 50
 ASTEROIDS Sprite 50 DUP (<>)
 ASTEROID_COUNT DWORD 0
 
@@ -66,22 +73,35 @@ GameInit PROC USES ebx ecx
 	;; Initialize HIM
 	mov HIM.x, ebx
 	mov HIM.y, ecx
-	mov HIM.vX, 0
-	mov HIM.vY, 0
-	mov HIM.rotation, 0
 
 	;; Save sprite for HIM
 	lea ebx, Fighter
 	mov HIM.bitmapPtr, ebx
 
+	;; Draw the score
+	push SCORE
+	push offset fmtStr
+	push offset outStr
+	call wsprintf
+	add esp, 12
+	INVOKE DrawStr, offset outStr, 20, 20, 0ffh
+
 	ret
 GameInit ENDP
 
 GamePlay PROC USES ebx
+	;; Handles pausing the game
+	CHECK_FOR_PAUSE:
+	mov ebx, KeyPress
+	cmp bl, 8h ;; Check for backspace
+	je DONE
+
 	;; Move all asteroid sprites
+	MOVE_SPRITES:
 	INVOKE MoveAsteroids
 
 	;; Check mouse state
+	CHECK_MOUSE_STATE:
 
 	;; If the state hasn't changed, do nothing
 	mov ebx, MouseStatus.buttons
@@ -143,19 +163,12 @@ GamePlay PROC USES ebx
 GamePlay ENDP
 
 SpawnAsteroid PROC USES ebx ecx edx esi
-	LOCAL asteroidPtr:DWORD
 	LOCAL x:DWORD, y:DWORD
 
 	;; Do nothing if too many sprites
 	cmp ASTEROID_COUNT, MAX_ASTEROIDS
 	mov ebx, ASTEROID_COUNT
 	jge DONE
-
-	;; HACK FOR NOW - Spawn at fixed spot
-	mov edx, SCREEN_WIDTH
-	shr edx, 1
-	INVOKE BasicBlit, OFFSET Asteroid, edx, 0
-	jmp SAVE_SPRITE
 
 	;; Randomly decide which side to spawn on
 	INVOKE nrandom, 2
@@ -207,26 +220,22 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 	mov x, SCREEN_WIDTH
 	INVOKE BasicBlit, OFFSET Asteroid, SCREEN_WIDTH, esi
 
+	;; Save sprite in memory
 	SAVE_SPRITE:
-	;; Get current asteroid
+
+	;; Get index to save current asteroid
 	mov ebx, SIZEOF Sprite
 	imul ebx, ASTEROID_COUNT
 	lea ecx, ASTEROIDS
 	add ebx, ecx
-	mov asteroidPtr, ebx
 
-	;; Create and save asteroid sprite
-	;; mov edx, [x]
-	;; mov (Sprite PTR [ebx]).x, edx ;; Set x
-	mov edx, SCREEN_WIDTH
-	shr edx, 1
-	mov (Sprite PTR [ebx]).x, edx ;; HACK
-	;; mov edx, [y]
-	;; mov (Sprite PTR [ebx]).y, edx ;; Set y
-	mov (Sprite PTR [ebx]).y, 0 ;; HACK
+	;; Save fields of asteroid sprite
+	mov edx, x
+	mov (Sprite PTR [ebx]).x, edx ;; Set x
+	mov edx, y
+	mov (Sprite PTR [ebx]).y, edx ;; Set y
 	mov (Sprite PTR [ebx]).vX, 0 ;; Set vX ;; TODO: Make this move towards HIM
 	mov (Sprite PTR [ebx]).vY, 1 ;; Set vY
-	mov (Sprite PTR [ebx]).rotation, 0 ;; Set rotation
 	lea ecx, Asteroid
 	mov (Sprite PTR [ebx]).bitmapPtr, ecx ;; Set bitmap
 
@@ -241,22 +250,23 @@ MoveAsteroids PROC USES ebx ecx edx
 	LOCAL x:DWORD, y:DWORD, vX:DWORD, vY:DWORD, bitmapPtr:DWORD
 	LOCAL count:DWORD, address:DWORD, endAddr:DWORD
 
-	;; Initialization
+	;; Store address of ASTEROIDS
 	lea ecx, ASTEROIDS
 	mov address, ecx
-	lea ecx, ASTEROID_COUNT
-	mov ecx, [ecx]
-	mov count, ecx
-	imul ecx, 24
-	add ecx, address
-	mov endAddr, ecx
 
+	;; Find the end of the array
+	mov edx, ASTEROID_COUNT
+	mov count, edx
+	imul edx, SIZEOF Sprite
+	add edx, address
+	mov endAddr, edx
+
+	;; Start the loop
 	jmp COND
 
 	BODY:
 
-	;; HACK FOR NOW - Fix this later
-	lea ebx, ASTEROIDS
+	;; Save fields
 	mov edx, (Sprite PTR [ebx]).x
 	mov x, edx
 	mov edx, (Sprite PTR [ebx]).y
@@ -265,17 +275,7 @@ MoveAsteroids PROC USES ebx ecx edx
 	mov vX, edx
 	mov edx, (Sprite PTR [ebx]).vY
 	mov vY, edx
-
-	;; Save fields
-	;mov edx, (Sprite PTR [address]).x
-	;mov x, edx
-	;mov edx, (Sprite PTR [address]).y
-	;mov y, edx
-	;mov edx, (Sprite PTR [address]).vX
-	;mov vX, edx
-	;mov edx, (Sprite PTR [address]).vY
-	;mov vY, edx
-	lea edx, Asteroid ;;Correct
+	lea edx, Asteroid
 	mov bitmapPtr, edx
 
 	;; Clear old asteroid sprite
@@ -284,12 +284,10 @@ MoveAsteroids PROC USES ebx ecx edx
 	;; Calculate & save new sprite position
 	mov edx, x
 	add edx, vX
-	;; mov (Sprite PTR [address]).x, edx
 	mov (Sprite PTR [ebx]).x, edx
 	mov x, edx
 	mov ecx, [y]
 	add ecx, vY
-	;; mov (Sprite PTR [address]).y, ecx
 	mov (Sprite PTR [ebx]).y, ecx
 	mov y, ecx
 
@@ -297,6 +295,9 @@ MoveAsteroids PROC USES ebx ecx edx
 	INVOKE CheckIntersect, x, y, bitmapPtr, HIM.x, HIM.y, HIM.bitmapPtr
 	cmp eax, 1
 	jne DRAW
+
+	;; Collision occurred
+	;; DRAW GAME OVER
 	dec ASTEROID_COUNT
 	jmp INCREMENT
 
@@ -310,6 +311,7 @@ MoveAsteroids PROC USES ebx ecx edx
 	add address, ecx
 
 	COND:
+	;; ebx holds the current address
 	mov ebx, address
 	cmp ebx, endAddr
 	jl BODY
