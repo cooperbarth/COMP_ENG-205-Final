@@ -1,0 +1,23 @@
+﻿  Assembling ..\..\compeng205-assign-45\game.asm...
+..\..\compeng205-assign-45\game.asm(8): error A2008: syntax error : .
+..\..\compeng205-assign-45\game.asm(9): error A2008: syntax error : .
+..\..\compeng205-assign-45\game.asm(10): error A2008: syntax error : .
+..\..\compeng205-assign-45\stars.inc(9): error A2008: syntax error : x
+..\..\compeng205-assign-45\trig.inc(12): error A2008: syntax error : angle
+..\..\compeng205-assign-45\trig.inc(13): error A2008: syntax error : angle
+..\..\compeng205-assign-45\blit.inc(31): error A2008: syntax error : ptrBitmap
+..\..\compeng205-assign-45\blit.inc(33): error A2008: syntax error : ptrBitmap
+..\..\compeng205-assign-45\blit.inc(35): error A2008: syntax error : ptrBitmap
+C:\masm32\include\masm32.inc(36): error A2008: syntax error : fpin
+C:\masm32\include\masm32.inc(37): error A2008: syntax error : fpin
+C:\masm32\include\masm32.inc(38): error A2008: syntax error : szIn
+..\..\compeng205-assign-45\game.asm(58): error A2008: syntax error : ebx
+..\..\compeng205-assign-45\game.asm(61): error A2008: syntax error : nseed
+..\..\compeng205-assign-45\game.asm(64): error A2008: syntax error : INVOKE
+..\..\compeng205-assign-45\game.asm(71): error A2008: syntax error : BasicBlit
+..\..\compeng205-assign-45\game.asm(82): error A2070: invalid instruction operands
+..\..\compeng205-assign-45\game.asm(83): error A2070: invalid instruction operands
+..\..\compeng205-assign-45\game.asm(84): error A2070: invalid instruction operands
+..\..\compeng205-assign-45\game.asm(87): error A2008: syntax error : DrawStr
+..\..\compeng205-assign-45\game.asm(90): fatal error A1010: unmatched block nesting : GameInit
+C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VC\VCTargets\BuildCustomizations\masm.targets(69,5): error MSB3721: The command "ml64.exe /c /nologo /Zi /Fo"x64\Debug\game.obj" /W3 /errorReport:prompt  /Ta"..\..\compeng205-assign-45\game.asm"" exited with code 1.

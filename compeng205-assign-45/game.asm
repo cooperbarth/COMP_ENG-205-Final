@@ -17,10 +17,14 @@ include blit.inc
 include game.inc
 include keys.inc
 
-include C:\masm32\include\masm32.inc
-includelib C:\masm32\lib\masm32.lib
 include \masm32\include\user32.inc
 ;; include \masm32\lib\user32.lib
+;;include \masm32\include\windows.inc
+;;include \masm32\include\winmm.inc
+;;include \masm32\lib\winmm.lib
+
+include C:\masm32\include\masm32.inc
+includelib C:\masm32\lib\masm32.lib
 	
 .DATA
 
@@ -28,8 +32,13 @@ include \masm32\include\user32.inc
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
 
+;; Tracks if the game is over
+GAME_OVER DWORD 0
+GAME_OVER_MSG BYTE "Game Over", 0
+
 ;;  Increment to rotate HIM on each frame
 ROTATE_INC = 6433
+PI = 205886
 
 ;; Tracking the last mouse status
 MOUSE_PRESSED DWORD 0
@@ -45,13 +54,21 @@ fmtStr BYTE "Score: %d", 0
 outStr BYTE 256 DUP(0)
 SCORE DWORD 0
 
+;; Audio file path
+audioPath BYTE "laser.wav", 0
+
 ;; Our hero
 HIM Sprite <>
 
 ;; Keep track of asteroids
-MAX_ASTEROIDS = 50
-ASTEROIDS Sprite 50 DUP (<>)
+MAX_ASTEROIDS =100
+ASTEROIDS Sprite 100 DUP (<>)
 ASTEROID_COUNT DWORD 0
+
+;; Keep track of missiles
+MAX_MISSILES = 100
+MISSILES Sprite 100 DUP (<>)
+MISSILE_COUNT DWORD 0
 
 .CODE
 
@@ -59,7 +76,7 @@ GameInit PROC USES ebx ecx
 	;; Set random seed
 	rdtsc
 	INVOKE nseed, eax
-
+	
 	;; Draw the background
 	INVOKE DrawStarField
 
@@ -68,11 +85,12 @@ GameInit PROC USES ebx ecx
 	shr ebx, 1
 	mov ecx, SCREEN_HEIGHT
 	shr ecx, 1
-	INVOKE BasicBlit, OFFSET Fighter, ebx, ecx
+	INVOKE RotateBlit, OFFSET Fighter, ebx, ecx, 0
 
 	;; Initialize HIM
 	mov HIM.x, ebx
 	mov HIM.y, ecx
+	mov HIM.enabled, 1
 
 	;; Save sprite for HIM
 	lea ebx, Fighter
@@ -90,15 +108,32 @@ GameInit PROC USES ebx ecx
 GameInit ENDP
 
 GamePlay PROC USES ebx
+	CHECK_GAME_OVER:
+	cmp GAME_OVER, 0
+	je CHECK_FOR_PAUSE
+	INVOKE BlackStarField
+	mov ebx, SCREEN_WIDTH
+	shr ebx, 1
+	sub ebx, 50
+	mov ecx, SCREEN_HEIGHT
+	shr ecx, 1
+	sub ecx, 25
+	INVOKE DrawStr, OFFSET GAME_OVER_MSG, ebx, ecx, 0ffh
+	jmp DONE
+
 	;; Handles pausing the game
 	CHECK_FOR_PAUSE:
 	mov ebx, KeyPress
-	cmp bl, 8h ;; Check for backspace
+	cmp ebx, VK_BACK ;; Check for backspace
 	je DONE
 
-	;; Move all asteroid sprites
+	;; Redraw HIM to give priority
+	INVOKE RotateBlit, OFFSET Fighter, HIM.x, HIM.y, HIM.rotation
+
+	;; Move all asteroid and missile sprites
 	MOVE_SPRITES:
 	INVOKE MoveAsteroids
+	INVOKE MoveMissiles
 
 	;; Check mouse state
 	CHECK_MOUSE_STATE:
@@ -123,40 +158,45 @@ GamePlay PROC USES ebx
 	mov [MOUSE_PRESSED], ebx
 
 	HANDLE_KEY_PRESS:
-	;; Check if no keys are pressed
+	;; Check if no keys are pressed or duplicate
 	mov ebx, KeyPress
+	cmp ebx, KEY_PRESSED
+	mov ecx, KEY_PRESSED
+	je DONE
+	mov KEY_PRESSED, ebx
 	cmp ebx, 0
 	je DONE
 
 	;; Check if left or right is pressed
 	cmp ebx, VK_LEFT
-	je CLEAR_BITMAP_HIM
+	je ROTATE
 	cmp ebx, VK_RIGHT
-	je CLEAR_BITMAP_HIM
+	je ROTATE
+	cmp ebx, VK_SPACE
+	je SHOOT
 	jmp DONE
 
-	CLEAR_BITMAP_HIM:
+	ROTATE:
 	;; Clear current bitmap
 	INVOKE ClearSprite, HIM.bitmapPtr, HIM.x, HIM.y, HIM.rotation
 
-	;; Figure out which way to rotate him
-	cmp ebx, VK_LEFT
-	je ROTATE_LEFT
-	cmp ebx, VK_RIGHT
-	je ROTATE_RIGHT
-	jmp DONE
-
-	;; Rotate left
-	ROTATE_LEFT:
-	sub HIM.rotation, ROTATE_INC
+	cmp HIM.rotation, PI
+	je SET_TO_0
+	mov HIM.rotation, PI
+	jmp ROTATE_HIM
+	SET_TO_0:
+	mov HIM.rotation, 0
 	jmp ROTATE_HIM
 
-	;; Rotate right
-	ROTATE_RIGHT:
-	add HIM.rotation, ROTATE_INC
-
 	ROTATE_HIM:
+	;; Draw the new sprite
+	mov ecx, HIM.rotation
 	INVOKE RotateBlit, HIM.bitmapPtr, HIM.x, HIM.y, HIM.rotation
+	jmp DONE
+
+	SHOOT:
+	INVOKE SpawnMissile
+	jmp DONE
 
 	DONE:
 	ret
@@ -164,22 +204,18 @@ GamePlay ENDP
 
 SpawnAsteroid PROC USES ebx ecx edx esi
 	LOCAL x:DWORD, y:DWORD
+	LOCAL vX: DWORD, vY:DWORD
 
 	;; Do nothing if too many sprites
 	cmp ASTEROID_COUNT, MAX_ASTEROIDS
 	mov ebx, ASTEROID_COUNT
 	jge DONE
 
-	;; Randomly decide which side to spawn on
-	INVOKE nrandom, 2
-	cmp eax, 1
-	je LEFT_RIGHT
-
 	TOP_BOTTOM:
-	;; Get x-coordinate to draw
-	INVOKE nrandom, SCREEN_WIDTH
-	mov esi, eax
-	mov x, eax
+	;; Set x coordinate to the middle of the screen
+	mov ecx, SCREEN_WIDTH
+	shr ecx, 1
+	mov x, ecx ;; Set x coordinate to 0
 
 	;; Decide whether to draw on top or bottom
 	INVOKE nrandom, 2
@@ -189,20 +225,25 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 	;; Paint on top
 	PAINT_TOP:
 	mov y, 0
-	INVOKE BasicBlit, OFFSET Asteroid, esi, 0
+	mov vX, 0
+	mov vY, 2
+	INVOKE BasicBlit, OFFSET Asteroid, x, 0
 	jmp SAVE_SPRITE
 
 	;; Paint on bottom
 	PAINT_BOTTOM:
 	mov y, [SCREEN_HEIGHT]
-	INVOKE BasicBlit, OFFSET Asteroid, esi, SCREEN_HEIGHT
+	sub y, 50
+	mov vX, 0
+	mov vY, -2
+	INVOKE BasicBlit, OFFSET Asteroid, x, y
 	jmp SAVE_SPRITE
 
 	LEFT_RIGHT:
-	;; Get y-coordinate to draw
-	INVOKE nrandom, SCREEN_HEIGHT
-	mov esi, eax
-	mov y, eax
+	;; Set y-coordinate to middle of screen
+	mov ecx, SCREEN_HEIGHT
+	shr ecx, 1
+	mov y, ecx ;; Set x coordinate to 0
 
 	;; Decide whether to draw on left or right
 	INVOKE nrandom, 2
@@ -212,13 +253,17 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 	;; Paint on left
 	PAINT_LEFT:
 	mov x, 0
-	INVOKE BasicBlit, OFFSET Asteroid, 0, esi
+	mov vX, 1
+	mov vY, 0
+	INVOKE BasicBlit, OFFSET Asteroid, x, y
 	jmp SAVE_SPRITE
 
 	;; Paint on right
 	PAINT_RIGHT:
-	mov x, SCREEN_WIDTH
-	INVOKE BasicBlit, OFFSET Asteroid, SCREEN_WIDTH, esi
+	mov x, [SCREEN_WIDTH]
+	mov vX, -1
+	mov vY, 0
+	INVOKE BasicBlit, OFFSET Asteroid, x, y
 
 	;; Save sprite in memory
 	SAVE_SPRITE:
@@ -228,23 +273,80 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 	imul ebx, ASTEROID_COUNT
 	lea ecx, ASTEROIDS
 	add ebx, ecx
+	inc ASTEROID_COUNT
 
-	;; Save fields of asteroid sprite
+	;; Save position of asteroid sprite
 	mov edx, x
 	mov (Sprite PTR [ebx]).x, edx ;; Set x
 	mov edx, y
 	mov (Sprite PTR [ebx]).y, edx ;; Set y
-	mov (Sprite PTR [ebx]).vX, 0 ;; Set vX ;; TODO: Make this move towards HIM
-	mov (Sprite PTR [ebx]).vY, 1 ;; Set vY
+
+	;; Save velocity fields of asteroid
+	mov ecx, vX
+	mov (Sprite PTR [ebx]).vX, ecx ;; Set vX
+	mov ecx, vY
+	mov (Sprite PTR [ebx]).vY, ecx ;; Set vY
 	lea ecx, Asteroid
 	mov (Sprite PTR [ebx]).bitmapPtr, ecx ;; Set bitmap
+	mov (Sprite PTR [ebx]).enabled, 1 ;; enable the sprite
 
-	;; Mark that we added another asteroid
-	inc ASTEROID_COUNT
-	
 	DONE:
 	ret
 SpawnAsteroid ENDP
+
+SpawnMissile PROC USES ebx ecx edx esi
+	LOCAL x:DWORD, y:DWORD, vY:DWORD
+
+	;; Do nothing if too many sprites
+	cmp MISSILE_COUNT, MAX_MISSILES
+	mov ebx, MISSILE_COUNT
+	jge DONE
+	
+	;; Draw missile
+	mov ecx, HIM.y
+	cmp HIM.rotation, 0
+	je SUB_POS
+	add ecx, 25
+	mov y, ecx
+	mov vY, 1
+	jmp DRAW_MISSILE
+	SUB_POS:
+	sub ecx, 25
+	mov y, ecx
+	mov vY, -1
+	DRAW_MISSILE:
+	mov ecx, HIM.x
+	mov x, ecx
+	INVOKE BasicBlit, OFFSET Missile, x, y
+
+	;; Save sprite in memory
+	SAVE_SPRITE:
+	;; Get index to save current missile
+	mov ebx, SIZEOF Sprite
+	imul ebx, MISSILE_COUNT
+	lea ecx, MISSILES
+	add ebx, ecx
+
+	;; Save position of missile Sprite
+	mov edx, x
+	mov (Sprite PTR [ebx]).x, edx ;; Set x
+	mov edx, y
+	mov (Sprite PTR [ebx]).y, edx ;; Set y
+
+	;; Save velocity fields of missile
+	mov (Sprite PTR [ebx]).vX, 0 ;; Set vX
+	mov ecx, vY
+	mov (Sprite PTR [ebx]).vY, ecx ;; Set vY
+	lea ecx, Missile
+	mov (Sprite PTR [ebx]).bitmapPtr, ecx ;; Set bitmap
+	mov (Sprite PTR [ebx]).enabled, 1 ;; enable the sprite
+
+	;; Mark that we added another missile
+	inc MISSILE_COUNT
+	
+	DONE:
+	ret
+SpawnMissile ENDP
 
 MoveAsteroids PROC USES ebx ecx edx
 	LOCAL x:DWORD, y:DWORD, vX:DWORD, vY:DWORD, bitmapPtr:DWORD
@@ -255,7 +357,7 @@ MoveAsteroids PROC USES ebx ecx edx
 	mov address, ecx
 
 	;; Find the end of the array
-	mov edx, ASTEROID_COUNT
+	mov edx, MAX_ASTEROIDS
 	mov count, edx
 	imul edx, SIZEOF Sprite
 	add edx, address
@@ -265,6 +367,9 @@ MoveAsteroids PROC USES ebx ecx edx
 	jmp COND
 
 	BODY:
+	;; Check if the sprite is enabled
+	cmp (Sprite PTR [ebx]).enabled, 0
+	je INCREMENT
 
 	;; Save fields
 	mov edx, (Sprite PTR [ebx]).x
@@ -286,10 +391,10 @@ MoveAsteroids PROC USES ebx ecx edx
 	add edx, vX
 	mov (Sprite PTR [ebx]).x, edx
 	mov x, edx
-	mov ecx, [y]
-	add ecx, vY
-	mov (Sprite PTR [ebx]).y, ecx
-	mov y, ecx
+	mov edx, y
+	add edx, vY
+	mov (Sprite PTR [ebx]).y, edx
+	mov y, edx
 
 	;; Check for collision
 	INVOKE CheckIntersect, x, y, bitmapPtr, HIM.x, HIM.y, HIM.bitmapPtr
@@ -297,8 +402,30 @@ MoveAsteroids PROC USES ebx ecx edx
 	jne DRAW
 
 	;; Collision occurred
-	;; DRAW GAME OVER
 	dec ASTEROID_COUNT
+	mov (Sprite PTR [ebx]).enabled, 0
+
+	;; Decrease score
+	;; Clear existing score
+	push SCORE
+	push offset fmtStr
+	push offset outStr
+	call wsprintf
+	add esp, 12
+	INVOKE DrawStr, offset outStr, 20, 20, 000h
+	;; Increment Score and draw
+	sub SCORE, 10
+	push SCORE
+	push offset fmtStr
+	push offset outStr
+	call wsprintf
+	add esp, 12
+	INVOKE DrawStr, offset outStr, 20, 20, 0ffh
+
+	;; Game over if you have -25 points or less
+	cmp SCORE, -25
+	jg INCREMENT
+	mov GAME_OVER, 1
 	jmp INCREMENT
 
 	;; Draw new sprite
@@ -318,6 +445,126 @@ MoveAsteroids PROC USES ebx ecx edx
 
 	ret
 MoveAsteroids ENDP
+
+MoveMissiles PROC USES ebx ecx edx
+	LOCAL x:DWORD, y:DWORD, vX:DWORD, vY:DWORD, bitmapPtr:DWORD
+	LOCAL count:DWORD, address:DWORD, endAddr:DWORD
+
+	;; Store address of MISSILES
+	lea ecx, MISSILES
+	mov address, ecx
+
+	;; Find the end of the array
+	mov edx, MAX_MISSILES
+	mov count, edx
+	imul edx, SIZEOF Sprite
+	add edx, address
+	mov endAddr, edx
+
+	;; Start the loop
+	jmp COND
+
+	BODY:
+	;; Check if the sprite is enabled
+	cmp (Sprite PTR [ebx]).enabled, 0
+	je INCREMENT
+
+	;; Save fields
+	mov edx, (Sprite PTR [ebx]).x
+	mov x, edx
+	mov edx, (Sprite PTR [ebx]).y
+	mov y, edx
+	mov edx, (Sprite PTR [ebx]).vX
+	mov vX, edx
+	mov edx, (Sprite PTR [ebx]).vY
+	mov vY, edx
+	lea edx, Missile
+	mov bitmapPtr, edx
+
+	;; Clear old missile sprite
+	INVOKE ClearSprite, bitmapPtr, x, y, 0
+
+	;; Calculate & save new sprite position
+	mov edx, x
+	add edx, vX
+	mov (Sprite PTR [ebx]).x, edx
+	mov x, edx
+	mov edx, y
+	add edx, vY
+	mov (Sprite PTR [ebx]).y, edx
+	mov y, edx
+
+	;; Check for collision with asteroids
+	mov ecx, ASTEROID_COUNT
+	lea esi, ASTEROIDS
+	jmp COND_INNER
+
+	BODY_ASTEROID:
+	;; Check if the sprite is enabled
+	cmp (Sprite PTR [esi]).enabled, 0
+	je INCREMENT_ASTEROID
+
+	;; Check for collision
+	INVOKE CheckIntersect, x, y, bitmapPtr, (Sprite PTR [esi]).x, (Sprite PTR [esi]).y, (Sprite PTR [esi]).bitmapPtr
+	cmp eax, 1
+	je COLLISION
+
+	;; Move to next asteroid
+	INCREMENT_ASTEROID:
+	add esi, SIZEOF Sprite ;; move to next sprite address
+	dec ecx
+
+	COND_INNER:
+	;; ecx holds the # of asteroids we have left to check
+	cmp ecx, 0
+	jle DRAW
+	jmp BODY_ASTEROID
+
+	;; Collision occurred
+	COLLISION:
+	mov (Sprite PTR [ebx]).enabled, 0
+	mov (Sprite PTR [esi]).enabled, 0
+
+	;; Clear sprites
+	INVOKE ClearSprite, (Sprite PTR [esi]).bitmapPtr, (Sprite PTR [esi]).x, (Sprite PTR [esi]).y, 0
+	INVOKE ClearSprite, bitmapPtr, x, y, 0
+
+	;; Increment Score
+	;; Clear existing score
+	push SCORE
+	push offset fmtStr
+	push offset outStr
+	call wsprintf
+	add esp, 12
+	INVOKE DrawStr, offset outStr, 20, 20, 000h
+	;; Increment Score and draw
+	inc SCORE
+	push SCORE
+	push offset fmtStr
+	push offset outStr
+	call wsprintf
+	add esp, 12
+	INVOKE DrawStr, offset outStr, 20, 20, 0ffh
+
+	jmp INCREMENT
+
+	;; Draw new sprite
+	DRAW:
+	INVOKE BasicBlit, bitmapPtr, x, y
+
+	;; Move to next missile
+	INCREMENT:
+	mov ecx, SIZEOF Sprite
+	add address, ecx
+
+	COND:
+	;; ebx holds the current address
+	mov ebx, address
+	cmp ebx, endAddr
+	jl BODY
+
+	ret
+MoveMissiles ENDP
 
 CheckIntersect PROC USES ebx ecx edx oneX:DWORD, oneY:DWORD, oneBitmap:PTR EECS205BITMAP, twoX:DWORD, twoY:DWORD, twoBitmap:PTR EECS205BITMAP
 	LOCAL TopLeftOneX:DWORD, TopLeftOneY:DWORD, BottomRightOneX:DWORD, BottomRightOneY:DWORD

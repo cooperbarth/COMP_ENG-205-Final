@@ -22,6 +22,7 @@ _Sprite STRUCT
 	vY DWORD 0
 	rotation FXPT 0
 	bitmapPtr DWORD ?
+	enabled DWORD 0
 _Sprite ENDS
 
 Sprite TYPEDEF _Sprite

@@ -71,6 +71,7 @@ BasicBlit PROC USES ebx ecx edx edi esi ptrBitmap:PTR EECS205BITMAP , xcenter:DW
 	; Set initial x-coordinate (xcenter - dwidth / 2)
 	mov ecx, w
 	sar ecx, 1
+	dec ecx ;; Prevent rounding error
 	mov ebx, xcenter
 	sub ebx, ecx
 	mov x_0, ebx ; Store initial X coord
@@ -78,6 +79,7 @@ BasicBlit PROC USES ebx ecx edx edi esi ptrBitmap:PTR EECS205BITMAP , xcenter:DW
 	; Set initial y-coordinate (ycenter - dheight / 2)
 	mov ecx, h
 	sar ecx, 1
+	dec ecx ;; Prevent rounding error
 	mov ebx, ycenter
 	sub ebx, ecx
 	mov y_0, ebx ; Store initial Y coord
