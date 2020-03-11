@@ -34,7 +34,10 @@ SCREEN_HEIGHT DWORD 480
 
 ;; Tracks if the game is over
 GAME_OVER DWORD 0
+PLAYER_1_WON DWORD 0
 GAME_OVER_MSG BYTE "Game Over", 0
+PLAYER_1_WINS_MSG BYTE "Player 1 Wins!", 0
+PLAYER_2_WINS_MSG BYTE "Player 2 Wins!", 0
 
 ;;  Increment to rotate HIM on each frame
 ROTATE_INC = 6433
@@ -53,9 +56,6 @@ PAUSED DWORD 0
 fmtStr BYTE "Score: %d", 0
 outStr BYTE 256 DUP(0)
 SCORE DWORD 0
-
-;; Audio file path
-audioPath BYTE "laser.wav", 0
 
 ;; Our hero
 HIM Sprite <>
@@ -124,6 +124,14 @@ GamePlay PROC USES ebx
 	shr ecx, 1
 	sub ecx, 25
 	INVOKE DrawStr, OFFSET GAME_OVER_MSG, ebx, ecx, 0ffh
+	add ecx, 20
+	sub ebx, 20
+	cmp PLAYER_1_WON, 0
+	je PLAYER_2_WINNER
+	INVOKE DrawStr, OFFSET PLAYER_1_WINS_MSG, ebx, ecx, 0ffh
+	jmp DONE
+	PLAYER_2_WINNER:
+	INVOKE DrawStr, OFFSET PLAYER_2_WINS_MSG, ebx, ecx, 0ffh
 	jmp DONE
 
 	;; Handles pausing the game
@@ -254,7 +262,12 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 	lea ecx, ASTEROIDS
 	add ebx, ecx
 	inc ASTEROID_COUNT
+	cmp ASTEROID_COUNT, MAX_ASTEROIDS
+	jl CONTINUE
+	mov PLAYER_1_WON, 1
+	mov GAME_OVER, 1
 
+	CONTINUE:
 	;; Save position of asteroid sprite
 	mov edx, x
 	mov (Sprite PTR [ebx]).x, edx ;; Set x
@@ -323,6 +336,9 @@ SpawnMissile PROC USES ebx ecx edx esi
 
 	;; Mark that we added another missile
 	inc MISSILE_COUNT
+	cmp MISSILE_COUNT, MAX_MISSILES
+	jl DONE
+	mov GAME_OVER, 1
 	
 	DONE:
 	ret
