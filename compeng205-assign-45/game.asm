@@ -29,8 +29,8 @@ includelib C:\masm32\lib\masm32.lib
 .DATA
 
 ;; Constants to track screen size
-SCREEN_WIDTH = 640
-SCREEN_HEIGHT = 480
+SCREEN_WIDTH DWORD 640
+SCREEN_HEIGHT DWORD 480
 
 ;; Tracks if the game is over
 GAME_OVER DWORD 0
@@ -88,6 +88,10 @@ GameInit PROC USES ebx ecx
 	INVOKE RotateBlit, OFFSET Fighter, ebx, ecx, 0
 
 	;; Initialize HIM
+	mov ebx, SCREEN_WIDTH
+	shr ebx, 1
+	mov ecx, SCREEN_HEIGHT
+	shr ecx, 1
 	mov HIM.x, ebx
 	mov HIM.y, ecx
 	mov HIM.enabled, 1
@@ -104,6 +108,7 @@ GameInit PROC USES ebx ecx
 	add esp, 12
 	INVOKE DrawStr, offset outStr, 20, 20, 0ffh
 
+	DONE:
 	ret
 GameInit ENDP
 
@@ -126,9 +131,6 @@ GamePlay PROC USES ebx
 	mov ebx, KeyPress
 	cmp ebx, VK_BACK ;; Check for backspace
 	je DONE
-
-	;; Redraw HIM to give priority
-	INVOKE RotateBlit, OFFSET Fighter, HIM.x, HIM.y, HIM.rotation
 
 	;; Move all asteroid and missile sprites
 	MOVE_SPRITES:
@@ -178,7 +180,11 @@ GamePlay PROC USES ebx
 
 	ROTATE:
 	;; Clear current bitmap
-	INVOKE ClearSprite, HIM.bitmapPtr, HIM.x, HIM.y, HIM.rotation
+	mov ebx, SCREEN_WIDTH
+	shr ebx, 1
+	mov ecx, SCREEN_HEIGHT
+	shr ecx, 1
+	INVOKE ClearSprite, HIM.bitmapPtr, ebx, ecx, HIM.rotation
 
 	cmp HIM.rotation, PI
 	je SET_TO_0
@@ -190,8 +196,7 @@ GamePlay PROC USES ebx
 
 	ROTATE_HIM:
 	;; Draw the new sprite
-	mov ecx, HIM.rotation
-	INVOKE RotateBlit, HIM.bitmapPtr, HIM.x, HIM.y, HIM.rotation
+	INVOKE RotateBlit, HIM.bitmapPtr, ebx, ecx, HIM.rotation
 	jmp DONE
 
 	SHOOT:
@@ -232,38 +237,13 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 
 	;; Paint on bottom
 	PAINT_BOTTOM:
-	mov y, [SCREEN_HEIGHT]
+	mov ecx, SCREEN_HEIGHT
+	mov y, ecx
 	sub y, 50
 	mov vX, 0
 	mov vY, -2
 	INVOKE BasicBlit, OFFSET Asteroid, x, y
 	jmp SAVE_SPRITE
-
-	LEFT_RIGHT:
-	;; Set y-coordinate to middle of screen
-	mov ecx, SCREEN_HEIGHT
-	shr ecx, 1
-	mov y, ecx ;; Set x coordinate to 0
-
-	;; Decide whether to draw on left or right
-	INVOKE nrandom, 2
-	cmp eax, 1
-	je PAINT_RIGHT
-
-	;; Paint on left
-	PAINT_LEFT:
-	mov x, 0
-	mov vX, 1
-	mov vY, 0
-	INVOKE BasicBlit, OFFSET Asteroid, x, y
-	jmp SAVE_SPRITE
-
-	;; Paint on right
-	PAINT_RIGHT:
-	mov x, [SCREEN_WIDTH]
-	mov vX, -1
-	mov vY, 0
-	INVOKE BasicBlit, OFFSET Asteroid, x, y
 
 	;; Save sprite in memory
 	SAVE_SPRITE:
