@@ -2,7 +2,7 @@
 
 Name: Cooper Barth
 
-This project is a space-based shooter game in which you control a small spaceship at the center of attacking asteroids.
+This project is a space-based shooter game written in MASM32 in which you control a small spaceship at the center of attacking asteroids.
 
 This game is meant to be played with 2 players. Player 1 uses the left and right arrow keys to rotate the spaceship in the 4 cardinal directions and the spacebar to shoot missiles. Player 2 uses the mouse to spawn asteroids randomly at the 4 sides of the screen.
 
