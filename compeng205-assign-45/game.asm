@@ -349,6 +349,11 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 	mov ebx, ASTEROID_COUNT
 	jge DONE
 
+	;; Decide whether to draw on top-bottom or left-right
+	INVOKE nrandom, 2
+	cmp eax, 1
+	je LEFT_RIGHT
+
 	TOP_BOTTOM:
 	;; Set x coordinate to the middle of the screen
 	mov ecx, SCREEN_WIDTH
@@ -378,6 +383,35 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 	INVOKE BasicBlit, OFFSET Asteroid, x, y
 	jmp SAVE_SPRITE
 
+	LEFT_RIGHT:
+	;; Set y coordinate to the middle of the screen
+	mov ecx, SCREEN_HEIGHT
+	shr ecx, 1
+	mov y, ecx ;; Set y coordinate to 0
+
+	;; Decide whether to draw on left or right
+	INVOKE nrandom, 2
+	cmp eax, 1
+	je PAINT_RIGHT
+
+	;; Paint on left
+	PAINT_LEFT:
+	mov x, 0
+	mov vX, 2
+	mov vY, 0
+	INVOKE BasicBlit, OFFSET Asteroid, x, y
+	jmp SAVE_SPRITE
+
+	;; Paint on right
+	PAINT_RIGHT:
+	mov ecx, SCREEN_WIDTH
+	mov x, ecx
+	sub x, 50  ;; Adjust for asteroid width
+	mov vX, -2
+	mov vY, 0
+	INVOKE BasicBlit, OFFSET Asteroid, x, y
+	jmp SAVE_SPRITE
+
 	;; Save sprite in memory
 	SAVE_SPRITE:
 
@@ -392,6 +426,7 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 	inc ASTEROID_COUNT
 	INVOKE DrawScores
 
+	;; Check if the game is over
 	cmp ASTEROID_COUNT, MAX_ASTEROIDS
 	jl CONTINUE
 	mov PLAYER_1_WON, 1
@@ -712,8 +747,14 @@ CheckIntersect PROC USES ebx ecx edx oneX:DWORD, oneY:DWORD, oneBitmap:PTR EECS2
 	;; Calculate left x coordinate
 	mov eax, oneX
 	sub eax, ebx
+	cmp eax, 0
+	jl SET_LEFT_0
 	mov TopLeftOneX, eax
+	jmp RIGHT_X
+	SET_LEFT_0:
+	mov TopLeftOneX, 0
 
+	RIGHT_X:
 	;; Calculate right x coordinate
 	mov eax, oneX
 	add eax, ebx
@@ -722,8 +763,14 @@ CheckIntersect PROC USES ebx ecx edx oneX:DWORD, oneY:DWORD, oneBitmap:PTR EECS2
 	;; Calculate top y coordinate
 	mov eax, oneY
 	sub eax, ecx
+	cmp eax, 0
+	jl SET_TOP_0
 	mov TopLeftOneY, eax
+	jmp BOTTOM_Y
+	SET_TOP_0:
+	mov TopLeftOneY, 0
 
+	BOTTOM_Y:
 	;; Calculate bottom y coordinate
 	mov eax, oneY
 	add eax, ecx
@@ -745,8 +792,14 @@ CheckIntersect PROC USES ebx ecx edx oneX:DWORD, oneY:DWORD, oneBitmap:PTR EECS2
 	;; Calculate left x coordinate
 	mov eax, twoX
 	sub eax, ebx
+	cmp eax, 0
+	jge SET_TWO_X
+	mov TopLeftTwoX, 0
+	jmp RIGHT_X_2
+	SET_TWO_X:
 	mov TopLeftTwoX, eax
 
+	RIGHT_X_2:
 	;; Calculate right x coordinate
 	mov eax, twoX
 	add eax, ebx
@@ -755,8 +808,14 @@ CheckIntersect PROC USES ebx ecx edx oneX:DWORD, oneY:DWORD, oneBitmap:PTR EECS2
 	;; Calculate top y coordinate
 	mov eax, twoY
 	sub eax, ecx
+	cmp eax, 0
+	jge SET_TWO_Y
+	mov TopLeftTwoY, 0
+	jmp BOTTOM_Y_2
+	SET_TWO_Y:
 	mov TopLeftTwoY, eax
 
+	BOTTOM_Y_2:
 	;; Calculate bottom y coordinate
 	mov eax, twoY
 	add eax, ecx
@@ -767,15 +826,14 @@ CheckIntersect PROC USES ebx ecx edx oneX:DWORD, oneY:DWORD, oneBitmap:PTR EECS2
 	;; Set initial return value to 0
 	mov eax, 0
 
-	;; Check for horizontal overlap (if either of these conditions are true, no overlap)
+	;; Check for horizontal overlap (if either of these conditions are true, we have to keep checking)
 	mov ebx, TopLeftOneX
 	cmp ebx, BottomRightTwoX
-	jl CHECK_VERTICAL
+	jg DONE
 	mov ebx, TopLeftTwoX
 	cmp ebx, BottomRightOneX
-	jl CHECK_VERTICAL
+	jg DONE
 
-	CHECK_VERTICAL:
 	;; Check for vertical overlap (if either of these conditions are true, no overlap)
 	mov ebx, TopLeftOneY
 	cmp ebx, BottomRightTwoY
