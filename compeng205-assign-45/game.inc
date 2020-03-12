@@ -41,6 +41,8 @@ GameInit PROTO
 GamePlay PROTO
 ClearScores PROTO STDCALL
 DrawScores PROTO STDCALL
+RotateLeft PROTO STDCALL
+RotateRight PROTO STDCALL
 SpawnAsteroid PROTO STDCALL
 SpawnMissile PROTO STDCALL
 MoveAsteroids PROTO STDCALL

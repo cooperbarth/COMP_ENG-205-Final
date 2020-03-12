@@ -39,9 +39,11 @@ GAME_OVER_MSG BYTE "Game Over", 0
 PLAYER_1_WINS_MSG BYTE "Player 1 Wins!", 0
 PLAYER_2_WINS_MSG BYTE "Player 2 Wins!", 0
 
-;;  Increment to rotate HIM on each frame
-ROTATE_INC = 6433
-PI = 205886
+;;  Directions the rocket can face
+UP = 0
+RIGHT = 102943
+DOWN = 205886
+LEFT = 308829
 
 ;; Tracking the last mouse status
 MOUSE_PRESSED DWORD 0
@@ -180,34 +182,20 @@ GamePlay PROC USES ebx
 	cmp ebx, 0
 	je DONE
 
-	;; Check if left or right is pressed
+	;; Handle Key Presses
+	CHECK_LEFT:
 	cmp ebx, VK_LEFT
-	je ROTATE
+	jne CHECK_RIGHT
+	INVOKE RotateLeft
+
+	CHECK_RIGHT:
 	cmp ebx, VK_RIGHT
-	je ROTATE
+	jne CHECK_SHOOT
+	INVOKE RotateRight
+
+	CHECK_SHOOT:
 	cmp ebx, VK_SPACE
 	je SHOOT
-	jmp DONE
-
-	ROTATE:
-	;; Clear current bitmap
-	mov ebx, SCREEN_WIDTH
-	shr ebx, 1
-	mov ecx, SCREEN_HEIGHT
-	shr ecx, 1
-	INVOKE ClearSprite, HIM.bitmapPtr, ebx, ecx, HIM.rotation
-
-	cmp HIM.rotation, PI
-	je SET_TO_0
-	mov HIM.rotation, PI
-	jmp ROTATE_HIM
-	SET_TO_0:
-	mov HIM.rotation, 0
-	jmp ROTATE_HIM
-
-	ROTATE_HIM:
-	;; Draw the new sprite
-	INVOKE RotateBlit, HIM.bitmapPtr, ebx, ecx, HIM.rotation
 	jmp DONE
 
 	SHOOT:
@@ -275,6 +263,82 @@ DrawScores PROC USES ebx
 
 	ret
 DrawScores ENDP
+
+RotateLeft PROC USES ebx ecx
+	;; Clear current bitmap
+	mov ebx, SCREEN_WIDTH
+	shr ebx, 1
+	mov ecx, SCREEN_HEIGHT
+	shr ecx, 1
+	INVOKE ClearSprite, HIM.bitmapPtr, ebx, ecx, HIM.rotation
+
+	cmp HIM.rotation, UP
+	je SET_TO_LEFT
+	cmp HIM.rotation, LEFT
+	je SET_TO_DOWN
+	cmp HIM.rotation, DOWN
+	je SET_TO_RIGHT
+
+	;; Set the ship's new rotation
+	SET_TO_UP:
+	mov HIM.rotation, UP
+	jmp ROTATE
+
+	SET_TO_RIGHT:
+	mov HIM.rotation, RIGHT
+	jmp ROTATE
+
+	SET_TO_DOWN:
+	mov HIM.rotation, DOWN
+	jmp ROTATE
+
+	SET_TO_LEFT:
+	mov HIM.rotation, LEFT
+
+	ROTATE:
+	;; Draw the new sprite
+	INVOKE RotateBlit, HIM.bitmapPtr, ebx, ecx, HIM.rotation
+
+	ret
+RotateLeft ENDP
+
+RotateRight PROC USES ebx ecx
+	;; Clear current bitmap
+	mov ebx, SCREEN_WIDTH
+	shr ebx, 1
+	mov ecx, SCREEN_HEIGHT
+	shr ecx, 1
+	INVOKE ClearSprite, HIM.bitmapPtr, ebx, ecx, HIM.rotation
+
+	cmp HIM.rotation, UP
+	je SET_TO_RIGHT
+	cmp HIM.rotation, RIGHT
+	je SET_TO_DOWN
+	cmp HIM.rotation, DOWN
+	je SET_TO_LEFT
+
+	;; Set the ship's new rotation
+	SET_TO_UP:
+	mov HIM.rotation, UP
+	jmp ROTATE
+
+	SET_TO_RIGHT:
+	mov HIM.rotation, RIGHT
+	jmp ROTATE
+
+	SET_TO_DOWN:
+	mov HIM.rotation, DOWN
+	jmp ROTATE
+
+	SET_TO_LEFT:
+	mov HIM.rotation, LEFT
+
+	ROTATE:
+	;; Draw the new sprite
+	INVOKE RotateBlit, HIM.bitmapPtr, ebx, ecx, HIM.rotation
+
+	ret
+RotateRight ENDP
 
 SpawnAsteroid PROC USES ebx ecx edx esi
 	LOCAL x:DWORD, y:DWORD
@@ -354,28 +418,51 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 SpawnAsteroid ENDP
 
 SpawnMissile PROC USES ebx ecx edx esi
-	LOCAL x:DWORD, y:DWORD, vY:DWORD
+	LOCAL x:DWORD, y:DWORD, vX:DWORD, vY:DWORD
 
 	;; Do nothing if too many sprites
 	cmp MISSILE_COUNT, MAX_MISSILES
 	mov ebx, MISSILE_COUNT
 	jge DONE
 	
-	;; Draw missile
+	;; Draw missile based on ship rotation
+	mov ebx, HIM.x
 	mov ecx, HIM.y
-	cmp HIM.rotation, 0
-	je SUB_POS
-	add ecx, 25
-	mov y, ecx
-	mov vY, 1
-	jmp DRAW_MISSILE
-	SUB_POS:
+
+	;; Decide where to draw the missile
+	cmp HIM.rotation, RIGHT
+	je DRAW_RIGHT
+	cmp HIM.rotation, DOWN
+	je DRAW_DOWN
+	cmp HIM.rotation, LEFT
+	je DRAW_LEFT
+
+	DRAW_UP:
 	sub ecx, 25
-	mov y, ecx
-	mov vY, -1
+	mov vX, 0
+	mov vY, -10
+	jmp DRAW_MISSILE
+
+	DRAW_RIGHT:
+	add ebx, 25
+	mov vX, 10
+	mov vY, 0
+	jmp DRAW_MISSILE
+
+	DRAW_DOWN:
+	add ecx, 25
+	mov vX, 0
+	mov vY, 10
+	jmp DRAW_MISSILE
+
+	DRAW_LEFT:
+	sub ebx, 25
+	mov vX, -10
+	mov vY, 0
+
 	DRAW_MISSILE:
-	mov ecx, HIM.x
-	mov x, ecx
+	mov x, ebx
+	mov y, ecx
 	INVOKE BasicBlit, OFFSET Missile, x, y
 
 	;; Save sprite in memory
@@ -393,9 +480,12 @@ SpawnMissile PROC USES ebx ecx edx esi
 	mov (Sprite PTR [ebx]).y, edx ;; Set y
 
 	;; Save velocity fields of missile
-	mov (Sprite PTR [ebx]).vX, 0 ;; Set vX
+	mov ecx, vX
+	mov (Sprite PTR [ebx]).vX, ecx ;; Set vX
 	mov ecx, vY
 	mov (Sprite PTR [ebx]).vY, ecx ;; Set vY
+
+	;; Set other fields of missile
 	lea ecx, Missile
 	mov (Sprite PTR [ebx]).bitmapPtr, ecx ;; Set bitmap
 	mov (Sprite PTR [ebx]).enabled, 1 ;; enable the sprite
