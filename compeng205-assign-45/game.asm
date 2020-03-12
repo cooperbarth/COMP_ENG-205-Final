@@ -406,7 +406,7 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 	PAINT_RIGHT:
 	mov ecx, SCREEN_WIDTH
 	mov x, ecx
-	sub x, 50  ;; Adjust for asteroid width
+	sub x, 30  ;; Adjust for asteroid width
 	mov vX, -2
 	mov vY, 0
 	INVOKE BasicBlit, OFFSET Asteroid, x, y
