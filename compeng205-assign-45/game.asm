@@ -53,7 +53,9 @@ KEY_PRESSED DWORD -1
 PAUSED DWORD 0
 
 ;; Keeps track of the current score
-fmtStr BYTE "Score: %d", 0
+scoreStr BYTE "Score: %d", 0
+asteroidsStr BYTE "Asteroids Remaining: %d", 0
+missilesStr BYTE "Missiles Remaining: %d", 0
 outStr BYTE 256 DUP(0)
 SCORE DWORD 0
 
@@ -100,13 +102,8 @@ GameInit PROC USES ebx ecx
 	lea ebx, Fighter
 	mov HIM.bitmapPtr, ebx
 
-	;; Draw the score
-	push SCORE
-	push offset fmtStr
-	push offset outStr
-	call wsprintf
-	add esp, 12
-	INVOKE DrawStr, offset outStr, 20, 20, 0ffh
+	;; Draw the scores
+	INVOKE DrawScores
 
 	DONE:
 	ret
@@ -140,10 +137,16 @@ GamePlay PROC USES ebx
 	cmp ebx, VK_BACK ;; Check for backspace
 	je DONE
 
+	;; Clear score text
+	INVOKE ClearScores
+
 	;; Move all asteroid and missile sprites
 	MOVE_SPRITES:
 	INVOKE MoveAsteroids
 	INVOKE MoveMissiles
+
+	;; Redraw Scores
+	INVOKE DrawScores
 
 	;; Check mouse state
 	CHECK_MOUSE_STATE:
@@ -215,6 +218,64 @@ GamePlay PROC USES ebx
 	ret
 GamePlay ENDP
 
+ClearScores PROC USES ebx
+	push SCORE
+	push offset scoreStr
+	push offset outStr
+	call wsprintf
+	add esp, 12
+	INVOKE DrawStr, OFFSET outStr, 15, 20, 000h
+
+	mov ebx, MAX_ASTEROIDS
+	sub ebx, ASTEROID_COUNT
+	push ebx
+	push offset asteroidsStr
+	push offset outStr
+	call wsprintf
+	add esp, 12
+	INVOKE DrawStr, OFFSET outStr, 15, 390, 000h
+
+	mov ebx, MAX_MISSILES
+	sub ebx, MISSILE_COUNT
+	push ebx
+	push OFFSET missilesStr
+	push OFFSET outStr
+	call wsprintf
+	add esp, 12
+	INVOKE DrawStr, OFFSET outStr, 15, 410, 000h
+
+	ret
+ClearScores ENDP
+
+DrawScores PROC USES ebx
+	push SCORE
+	push OFFSET scoreStr
+	push OFFSET outStr
+	call wsprintf
+	add esp, 12
+	INVOKE DrawStr, OFFSET outStr, 15, 20, 0ffh
+
+	mov ebx, MAX_ASTEROIDS
+	sub ebx, ASTEROID_COUNT
+	push ebx
+	push OFFSET asteroidsStr
+	push OFFSET outStr
+	call wsprintf
+	add esp, 12
+	INVOKE DrawStr, OFFSET outStr, 15, 390, 0ffh
+
+	mov ebx, MAX_MISSILES
+	sub ebx, MISSILE_COUNT
+	push ebx
+	push OFFSET missilesStr
+	push OFFSET outStr
+	call wsprintf
+	add esp, 12
+	INVOKE DrawStr, OFFSET outStr, 15, 410, 0ffh
+
+	ret
+DrawScores ENDP
+
 SpawnAsteroid PROC USES ebx ecx edx esi
 	LOCAL x:DWORD, y:DWORD
 	LOCAL vX: DWORD, vY:DWORD
@@ -261,7 +322,12 @@ SpawnAsteroid PROC USES ebx ecx edx esi
 	imul ebx, ASTEROID_COUNT
 	lea ecx, ASTEROIDS
 	add ebx, ecx
+
+	;; Redraw count
+	INVOKE ClearScores
 	inc ASTEROID_COUNT
+	INVOKE DrawScores
+
 	cmp ASTEROID_COUNT, MAX_ASTEROIDS
 	jl CONTINUE
 	mov PLAYER_1_WON, 1
@@ -334,8 +400,10 @@ SpawnMissile PROC USES ebx ecx edx esi
 	mov (Sprite PTR [ebx]).bitmapPtr, ecx ;; Set bitmap
 	mov (Sprite PTR [ebx]).enabled, 1 ;; enable the sprite
 
-	;; Mark that we added another missile
+	;; Mark that we added another missile & redraw scores
+	INVOKE ClearScores
 	inc MISSILE_COUNT
+	INVOKE DrawScores
 	cmp MISSILE_COUNT, MAX_MISSILES
 	jl DONE
 	mov GAME_OVER, 1
@@ -402,21 +470,7 @@ MoveAsteroids PROC USES ebx ecx edx
 	mov (Sprite PTR [ebx]).enabled, 0
 
 	;; Decrease score
-	;; Clear existing score
-	push SCORE
-	push offset fmtStr
-	push offset outStr
-	call wsprintf
-	add esp, 12
-	INVOKE DrawStr, offset outStr, 20, 20, 000h
-	;; Increment Score and draw
 	sub SCORE, 10
-	push SCORE
-	push offset fmtStr
-	push offset outStr
-	call wsprintf
-	add esp, 12
-	INVOKE DrawStr, offset outStr, 20, 20, 0ffh
 
 	;; Game over if you have -25 points or less
 	cmp SCORE, -25
@@ -526,21 +580,7 @@ MoveMissiles PROC USES ebx ecx edx
 	INVOKE ClearSprite, bitmapPtr, x, y, 0
 
 	;; Increment Score
-	;; Clear existing score
-	push SCORE
-	push offset fmtStr
-	push offset outStr
-	call wsprintf
-	add esp, 12
-	INVOKE DrawStr, offset outStr, 20, 20, 000h
-	;; Increment Score and draw
 	inc SCORE
-	push SCORE
-	push offset fmtStr
-	push offset outStr
-	call wsprintf
-	add esp, 12
-	INVOKE DrawStr, offset outStr, 20, 20, 0ffh
 
 	jmp INCREMENT
 

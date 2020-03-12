@@ -39,6 +39,8 @@ EXTERNDEF StarBitmap:EECS205BITMAP
 ;; User Defined Functions
 GameInit PROTO
 GamePlay PROTO
+ClearScores PROTO STDCALL
+DrawScores PROTO STDCALL
 SpawnAsteroid PROTO STDCALL
 SpawnMissile PROTO STDCALL
 MoveAsteroids PROTO STDCALL
