@@ -10,6 +10,8 @@ Whenever Player 1 successfully kills an asteroid with a missile, they are awarde
 
 Player 1 has 100 missiles. If they run out, Player 2 wins! Player 2 has 100 asteroids. If they run out, Player 1 wins!
 
+To pause, hold down backspace.
+
 ## Advanced Components:
 
 - Multiple In-Flight Projectiles: There will be lots of projectiles on the screen at all times
