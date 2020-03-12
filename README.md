@@ -4,7 +4,7 @@ Name: Cooper Barth
 
 This project is a space-based shooter game in which you control a small spaceship at the center of attacking asteroids.
 
-This game is meant to be played with 2 players. Player 1 uses the left and right arrow keys to rotate the spaceship up and down and the spacebar to shoot missiles. Player 2 uses the mouse to spawn asteroids randomly at the top and bottom of the screen.
+This game is meant to be played with 2 players. Player 1 uses the left and right arrow keys to rotate the spaceship in the 4 cardinal directions and the spacebar to shoot missiles. Player 2 uses the mouse to spawn asteroids randomly at the 4 sides of the screen.
 
 Whenever Player 1 successfully kills an asteroid with a missile, they are awarded 1 point. Whenever Player 2 successfully hits Player 1 with an asteroid, Player 1 loses 10 points. If the points go below -25, it's game over!
 
